@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<title>光影對決：技能封印優化版</title>
+<style>
+  :root {
+    --panel-bg: rgba(0, 0, 0, 0.8);
+    --glow-O: 0 0 30px #f6d26a;
+    --glow-X: 0 0 30px #9a7bff;
+    --win-line-color: #ccff00;
+  }
+
+  body {
+    margin: 0; padding: 0; width: 100vw; height: 100vh;
+    color: white; font-family: "Microsoft JhengHei", sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #050816; overflow: hidden; position: relative;
+  }
+
+  /* --- 特效動畫 --- */
+  @keyframes shake {
+    0% { transform: translate(1px, 1px) rotate(0deg); }
+    20% { transform: translate(-3px, 0px) rotate(-1deg); }
+    40% { transform: translate(3px, 2px) rotate(1deg); }
+    60% { transform: translate(-3px, 1px) rotate(-1deg); }
+    80% { transform: translate(3px, 1px) rotate(1deg); }
+    100% { transform: translate(1px, -2px) rotate(0deg); }
+  }
+  .shake-effect { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
+
+  @keyframes floatUp {
+    0% { opacity: 0; transform: translateY(0) scale(0.8); }
+    20% { opacity: 1; transform: scale(1.2); }
+    100% { opacity: 0; transform: translateY(-80px) scale(1); }
+  }
+  .float-text {
+    position: absolute; width: 100px; text-align: center;
+    font-size: 2.5rem; font-weight: 900; z-index: 100;
+    pointer-events: none; animation: floatUp 0.8s ease-out forwards;
+    text-shadow: 0 0 10px rgba(0,0,0,0.8);
+  }
+
+  #timer-container {
+    font-size: 3.5rem; font-weight: bold; color: #00d4ff;
+    padding: 10px 70px; background: var(--panel-bg);
+    border: 4px solid #00d4ff; border-radius: 60px;
+    margin-bottom: 25px; box-shadow: 0 0 30px #00d4ff;
+    transition: all 0.3s;
+  }
+  .timer-warn { color: #ff4b2b !important; border-color: #ff4b2b !important; box-shadow: 0 0 30px #ff4b2b !important; transform: scale(1.1); }
+
+  .bg-layer {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #050816 url('Gemini_Generated_Image_axefmzaxefmzaxef.jpg') center/cover no-repeat;
+    filter: brightness(0.3); z-index: -2;
+  }
+
+  .game-main {
+    display: flex; align-items: center; justify-content: center;
+    gap: 20px; width: 95%; max-width: 1400px;
+  }
+
+  /* --- HP 與殘影 --- */
+  .hp-visual-container { position: relative; width: 100px; height: 450px; }
+  .hp-img-base { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
+  .hp-bg { filter: brightness(0.2); z-index: 1; }
+  .hp-ghost { z-index: 2; filter: brightness(2) saturate(0); transition: clip-path 1s ease-out; opacity: 0.5; } 
+  .hp-fill { z-index: 3; transition: clip-path 0.3s ease-out; }
+  .defending-bar { filter: drop-shadow(0 0 15px #00d4ff) brightness(1.2) !important; }
+
+  .hp-text {
+    position: absolute; width: 100%; text-align: center;
+    font-size: 1.2rem; font-weight: 900; color: #fff;
+    text-shadow: 0 0 8px #000; z-index: 10; transition: top 0.4s;
+  }
+
+  .side-panel {
+    display: flex; align-items: center; gap: 20px;
+    background: var(--panel-bg); padding: 25px; border-radius: 35px;
+    border: 3px solid rgba(255,255,255,0.05); transition: all 0.4s ease;
+  }
+
+  .avatar { 
+    width: 140px; height: 260px; border-radius: 20px; object-fit: cover; 
+    border: 3px solid rgba(255,255,255,0.2); filter: brightness(0.4); transition: all 0.4s ease;
+  }
+  /* 技能被封印時的頭像視覺 */
+  .stunned-avatar { filter: sepia(1) hue-rotate(300deg) brightness(0.6) !important; border-color: #ff00ff !important; }
+
+  .active-side-O .avatar { filter: brightness(1); border-color: #f6d26a; box-shadow: var(--glow-O); }
+  .active-side-X .avatar { filter: brightness(1); border-color: #9a7bff; box-shadow: var(--glow-X); }
+
+  .sp-column-vertical { display: flex; flex-direction: column-reverse; gap: 15px; }
+  .sp-dot { width: 45px; height: 45px; background-size: contain; background-repeat: no-repeat; transition: 0.3s; }
+  .sp-on { background-image: url('sp_on.png'); border-radius: 50%; box-shadow: 0 0 15px rgba(246, 210, 106, 0.6); }
+  .sp-off { background-image: url('sp_off.png'); background-color: rgba(255, 255, 255, 0.05); border-radius: 50%; opacity: 0.3; }
+
+  /* --- 棋盤 --- */
+  .board-wrapper { position: relative; }
+  .board {
+    display: grid; grid-template-columns: repeat(3, 140px); grid-template-rows: repeat(3, 140px);
+    gap: 15px; padding: 25px; background: rgba(255,255,255,0.05);
+    border-radius: 30px; border: 2px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+  }
+  .cell {
+    background: rgba(0, 0, 0, 0.75); border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 4.5rem; font-weight: bold; cursor: pointer; transition: 0.2s;
+  }
+  .cell.O { color: #f6d26a; text-shadow: var(--glow-O); }
+  .cell.X { color: #9a7bff; text-shadow: var(--glow-X); }
+
+  @keyframes blinkWarn { from { opacity: 1; } to { opacity: 0.3; filter: brightness(2); } }
+  .warning-cell { animation: blinkWarn 0.6s infinite alternate; }
+
+  #win-line-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+  .winning-line { stroke: var(--win-line-color); stroke-width: 12; stroke-linecap: round; filter: drop-shadow(0 0 15px var(--win-line-color)); stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: drawLine 0.5s ease-out forwards; }
+  @keyframes drawLine { to { stroke-dashoffset: 0; } }
+
+  /* --- 技能控制區 --- */
+  .skill-footer {
+    margin-top: 40px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    background: var(--panel-bg); padding: 20px 60px; border-radius: 80px;
+    border: 4px solid rgba(255,255,255,0.15);
+  }
+  .usage-dots { display: flex; gap: 12px; padding-bottom: 5px; }
+  .u-dot { width: 14px; height: 14px; border-radius: 50%; background: #333; transition: 0.3s; border: 1px solid #555; }
+  .u-dot.fill { background: #00d4ff; box-shadow: 0 0 10px #00d4ff; border-color: #fff; }
+
+  .skill-header-row { display: flex; align-items: center; gap: 40px; }
+  .skill-label { font-size: 1.8rem; font-weight: bold; color: #00d4ff; border-right: 4px solid #555; padding-right: 35px; }
+  
+  .skill-list { display: flex; gap: 25px; }
+  .s-btn {
+    position: relative; width: 240px; height: 110px; border: none; border-radius: 25px;
+    cursor: not-allowed; background-size: cover; background-position: center;
+    opacity: 0.4; filter: brightness(0.6); transition: all 0.3s; 
+  }
+  .s-btn.active { 
+    cursor: pointer; opacity: 1; filter: brightness(1); transform: translateY(-5px); 
+    border: 3px solid #00d4ff; box-shadow: 0 0 20px rgba(0,212,255,0.6); 
+  }
+  /* 封印狀態提示 */
+  .s-btn.sealed::after {
+    content: "技能封印中";
+    position: absolute; width: 100%; text-align: center; top: 40%;
+    color: #ff00ff; font-weight: bold; font-size: 1.4rem; text-shadow: 0 0 8px black;
+  }
+
+  .cost-tag { position: absolute; bottom: 8px; right: 15px; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 10px; font-size: 0.9rem; color: #f6d26a; border: 1px solid rgba(246, 210, 106, 0.4); pointer-events: none; }
+  
+  .btn-atk { background-image: url('skill_atk.png'); }
+  .btn-def { background-image: url('skill_def.png'); }
+  .btn-hel { background-image: url('skill_hel.png'); }
+  .btn-stn { background-image: url('skill_stn.png'); }
+</style>
+</head>
+<body>
+
+<div class="bg-layer"></div>
+<div id="timer-container">30</div>
+
+<div class="game-main" id="main-container">
+  <div class="hp-visual-container" id="hp-box-O">
+    <div id="hp-val-O" class="hp-text">100%</div>
+    <img src="left-hp-bar.png" class="hp-img-base hp-bg">
+    <img src="left-hp-bar.png" id="hp-ghost-O" class="hp-img-base hp-ghost">
+    <img src="left-hp-bar.png" id="hp-fill-O" class="hp-img-base hp-fill">
+  </div>
+  
+  <div class="side-panel" id="panel-O">
+    <img src="image_ba490a.png" class="avatar" id="avatar-O" alt="P1">
+    <div class="sp-column-vertical" id="sp-display-O"></div>
+  </div>
+
+  <div class="board-wrapper">
+    <svg id="win-line-canvas"></svg>
+    <div class="board" id="board">
+      <script>for(let i=0; i<9; i++) document.write(`<div class="cell" id="c-${i}" onclick="tap(${i})"></div>`);</script>
+    </div>
+  </div>
+
+  <div class="side-panel" id="panel-X">
+    <div class="sp-column-vertical" id="sp-display-X"></div>
+    <img src="image_ba4947.png" class="avatar" id="avatar-X" alt="P2">
+  </div>
+
+  <div class="hp-visual-container" id="hp-box-X">
+    <div id="hp-val-X" class="hp-text">100%</div>
+    <img src="right-hp-bar.png" class="hp-img-base hp-bg">
+    <img src="right-hp-bar.png" id="hp-ghost-X" class="hp-img-base hp-ghost">
+    <img src="right-hp-bar.png" id="hp-fill-X" class="hp-img-base hp-fill">
+  </div>
+</div>
+
+<div class="skill-footer">
+  <div class="usage-dots" id="usage-dots-container"></div>
+  <div class="skill-header-row">
+    <div class="skill-label">戰技命令</div>
+    <div class="skill-list" id="skill-list-container"></div>
+  </div>
+</div>
+
+<script>
+  const sounds = {
+    tap: new Audio('sounds/tap.mp3'), atk: new Audio('sounds/atk.mp3'),
+    def: new Audio('sounds/def.mp3'), hel: new Audio('sounds/hel.mp3'),
+    stn: new Audio('sounds/stn.mp3'), tick: new Audio('sounds/tick.mp3')
+  };
+
+  let turn = 'O', grid = Array(9).fill(null), queues = {O:[], X:[]};
+  let data = { 
+    O:{hp:100, sp:0, skillUsed:0, stunned:0, defending:false}, 
+    X:{hp:100, sp:0, skillUsed:0, stunned:0, defending:false} 
+  };
+  let timeLeft = 30, timer;
+
+  function playSound(name) {
+    const s = sounds[name];
+    if(s) { s.pause(); s.currentTime = 0; s.play().catch(()=>{}); }
+  }
+  function stopSound(name) { const s = sounds[name]; if(s) { s.pause(); s.currentTime = 0; } }
+
+  function startTimer() {
+    clearInterval(timer); stopSound('tick');
+    timeLeft = 30;
+    const timerEl = document.getElementById('timer-container');
+    timerEl.innerText = timeLeft;
+    timerEl.classList.remove('timer-warn');
+
+    timer = setInterval(() => { 
+      timeLeft--; 
+      timerEl.innerText = timeLeft;
+      if(timeLeft <= 10) timerEl.classList.add('timer-warn');
+      if(timeLeft <= 10 && timeLeft > 0) playSound('tick');
+      if(timeLeft <= 0) { stopSound('tick'); swapTurn(); }
+    }, 1000);
+  }
+
+  function tap(i) {
+    if(grid[i] || isGameOver()) return;
+    playSound('tap');
+    
+    if(queues[turn].length >= 3) {
+      grid[queues[turn].shift()] = null;
+    }
+    grid[i] = turn; queues[turn].push(i);
+    render();
+    
+    let winCombo = checkWin();
+    if(winCombo) { 
+      stopSound('tick');
+      drawWinLine(winCombo);
+      data[turn].sp = Math.min(5, data[turn].sp + 1); 
+      setTimeout(resetGrid, 1000); 
+    } else {
+      swapTurn();
+    }
+    updateUI();
+  }
+
+  function useSkill(type) {
+    let p = turn; 
+    // 檢查點：如果 stunned 回合數 > 0，則無法發動技能
+    if(data[p].stunned > 0 || data[p].skillUsed >= 3 || isGameOver()) return;
+    
+    let cost = (type==='atk'?1 : type==='stn'?3 : 2);
+    if(data[p].sp < cost) return;
+    
+    data[p].sp -= cost; data[p].skillUsed++;
+    let target = p==='O'?'X':'O';
+    playSound(type);
+
+    if(type==='atk') {
+      let dmg = 10; if(data[target].defending) { dmg = 5; data[target].defending = false; }
+      data[target].hp = Math.max(0, data[target].hp - dmg);
+      triggerShake();
+      showFloatText(`hp-box-${target}`, `-${dmg}`, '#ff4b2b');
+    } else if(type==='def') {
+      data[p].defending = true;
+    } else if(type==='hel') { 
+      data[p].hp = Math.min(100, data[p].hp + 8); 
+      showFloatText(`hp-box-${p}`, `+8`, '#4CAF50');
+    } else if(type==='stn') {
+      // 設置目標玩家被封印技能 3 回合
+      data[target].stunned = 3; 
+      triggerShake();
+      showFloatText(`hp-box-${target}`, `SEALED!`, '#ff00ff');
+    }
+    updateUI(); checkEnd();
+  }
+
+  function swapTurn() {
+    stopSound('tick');
+    
+    // 當前玩家完成落子，如果身上有封印狀態，回合結束時減 1
+    if(data[turn].stunned > 0) {
+        data[turn].stunned--;
+    }
+
+    data[turn].skillUsed = 0; 
+    turn = turn==='O'?'X':'O'; 
+    data[turn].defending = false; 
+    
+    // 注意：這裡不再跳過回合，所有玩家都能正常落子
+    startTimer(); 
+    updateUI();
+  }
+
+  function drawWinLine(combo) {
+    const canvas = document.getElementById('win-line-canvas');
+    const start = document.getElementById('c-' + combo[0]).getBoundingClientRect();
+    const end = document.getElementById('c-' + combo[2]).getBoundingClientRect();
+    const wrap = document.querySelector('.board-wrapper').getBoundingClientRect();
+    const x1 = (start.left + start.width/2) - wrap.left, y1 = (start.top + start.height/2) - wrap.top;
+    const x2 = (end.left + end.width/2) - wrap.left, y2 = (end.top + end.height/2) - wrap.top;
+    canvas.innerHTML = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="winning-line" />`;
+  }
+
+  function checkWin() {
+    const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    for (let c of wins) if (grid[c[0]] && grid[c[0]]===grid[c[1]] && grid[c[0]]===grid[c[2]]) return c;
+    return null;
+  }
+
+  function resetGrid() { 
+    document.getElementById('win-line-canvas').innerHTML = ''; 
+    grid.fill(null); queues.O=[]; queues.X=[]; render(); swapTurn(); 
+  }
+
+  function render() {
+    for(let i=0; i<9; i++) {
+      let el = document.getElementById('c-'+i);
+      el.innerText = grid[i] || ''; 
+      el.className = 'cell ' + (grid[i] || '');
+      if(grid[i] && queues[grid[i]].length === 3 && queues[grid[i]][0] === i) {
+        el.classList.add('warning-cell');
+      }
+    }
+  }
+
+  function updateUI() {
+    ['O','X'].forEach(p => {
+      const hp = data[p].hp;
+      document.getElementById(`hp-fill-${p}`).style.clipPath = `inset(${100 - hp}% 0 0 0)`;
+      document.getElementById(`hp-ghost-${p}`).style.clipPath = `inset(${100 - hp}% 0 0 0)`;
+      const valEl = document.getElementById(`hp-val-${p}`);
+      valEl.innerText = Math.floor(hp) + '%';
+      valEl.style.top = `calc(${100 - hp}% + 10px)`; 
+
+      // 被封印時頭像視覺提示
+      const avatar = document.getElementById(`avatar-${p}`);
+      if(data[p].stunned > 0) avatar.classList.add('stunned-avatar');
+      else avatar.classList.remove('stunned-avatar');
+
+      if(data[p].defending) document.getElementById(`hp-fill-${p}`).classList.add('defending-bar');
+      else document.getElementById(`hp-fill-${p}`).classList.remove('defending-bar');
+      document.getElementById(`panel-${p}`).className = 'side-panel' + (turn===p?' active-side-'+p:'');
+      let spHTML = '';
+      for(let i=0; i<5; i++) spHTML += `<div class="sp-dot ${i < data[p].sp ? 'sp-on' : 'sp-off'}"></div>`;
+      document.getElementById(`sp-display-${p}`).innerHTML = spHTML;
+    });
+
+    let dotsHTML = '';
+    for(let i=0; i<3; i++) dotsHTML += `<div class="u-dot ${i < (3 - data[turn].skillUsed) ? 'fill' : ''}"></div>`;
+    document.getElementById('usage-dots-container').innerHTML = dotsHTML;
+    
+    let isCurrentStunned = data[turn].stunned > 0;
+    let skills = [{t:'atk', c:1}, {t:'def', c:2}, {t:'hel', c:2}, {t:'stn', c:3}];
+    let html = '';
+    skills.forEach(s => {
+      // 如果處於封印狀態，can 永遠為 false，且加上 sealed class
+      let can = (!isCurrentStunned && data[turn].sp >= s.c && data[turn].skillUsed < 3 && !isGameOver());
+      let sealedClass = isCurrentStunned ? "sealed" : "";
+      html += `<button class="s-btn btn-${s.t} ${can ? 'active' : ''} ${sealedClass}" onclick="useSkill('${s.t}')"><div class="cost-tag">SP ${s.c}</div></button>`;
+    });
+    document.getElementById('skill-list-container').innerHTML = html;
+  }
+
+  function triggerShake() { document.getElementById('main-container').classList.add('shake-effect'); setTimeout(()=>document.getElementById('main-container').classList.remove('shake-effect'), 300); }
+  function showFloatText(id, txt, col) {
+    const box = document.getElementById(id);
+    const el = document.createElement('div'); el.className = 'float-text'; el.innerText = txt; el.style.color = col;
+    el.style.left = '0'; box.appendChild(el);
+    setTimeout(() => el.remove(), 800);
+  }
+  function isGameOver() { return data.O.hp <= 0 || data.X.hp <= 0; }
+  function checkEnd() { if(isGameOver()) { clearInterval(timer); stopSound('tick'); setTimeout(() => { alert("戰鬥結束！"); location.reload(); }, 500); } }
+
+  startTimer(); 
+  updateUI();
+</script>
+</body>
+</html>

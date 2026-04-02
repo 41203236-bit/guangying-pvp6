@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>光影對決：技能封印優化版</title>
+<style>
+  :root {
+    --panel-bg: rgba(6, 10, 24, 0.74);
+    --panel-strong: rgba(7, 11, 24, 0.88);
+    --line-soft: rgba(255,255,255,.12);
+    --glow-O: 0 0 30px rgba(246,210,106,.58);
+    --glow-X: 0 0 30px rgba(154,123,255,.58);
+    --win-line-color: #ccff00;
+  }
+  body {margin: 0; padding: 0; width: 100vw; height: 100vh;color: white; font-family: "Microsoft JhengHei", sans-serif;display: flex; flex-direction: column; align-items: center; justify-content: center;background: radial-gradient(circle at 18% 16%, rgba(0,194,255,.11), transparent 22%), radial-gradient(circle at 82% 18%, rgba(141,107,255,.12), transparent 20%), radial-gradient(circle at 52% 82%, rgba(255,216,107,.08), transparent 18%), #050816; overflow: hidden; position: relative;}
+  @keyframes shake {0%{transform: translate(1px, 1px) rotate(0deg);}20%{transform: translate(-3px, 0px) rotate(-1deg);}40%{transform: translate(3px, 2px) rotate(1deg);}60%{transform: translate(-3px, 1px) rotate(-1deg);}80%{transform: translate(3px, 1px) rotate(1deg);}100%{transform: translate(1px, -2px) rotate(0deg);}}
+  .shake-effect { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
+  @keyframes floatUp {0%{opacity:0;transform:translateY(0) scale(.8);}20%{opacity:1;transform:scale(1.2);}100%{opacity:0;transform:translateY(-80px) scale(1);}}
+  .float-text {position:absolute;width:100px;text-align:center;font-size:2.5rem;font-weight:900;z-index:100;pointer-events:none;animation:floatUp .8s ease-out forwards;text-shadow:0 0 10px rgba(0,0,0,.8)}
+  #topbar{position:fixed;top:16px;left:18px;right:18px;display:flex;justify-content:space-between;align-items:center;z-index:9999}
+  .pill{position:relative;overflow:hidden;background:linear-gradient(180deg,rgba(8,12,28,.74),rgba(5,8,20,.88));border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:12px 16px;backdrop-filter:blur(10px);box-shadow:0 14px 28px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.05)}
+  .pill::before{content:"";position:absolute;inset:0;background:linear-gradient(120deg, rgba(103,232,255,.08), transparent 30%, transparent 70%, rgba(141,107,255,.08));pointer-events:none}
+  #turnText{font-weight:900}
+  #timer-container {font-size: 3.9rem; font-weight: bold; color: #7eefff;padding: 12px 82px; background: linear-gradient(180deg, rgba(6,10,24,.86), rgba(7,10,22,.96));border: 3px solid rgba(103,232,255,.82); border-radius: 60px;margin-bottom: 28px; box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 0 32px rgba(0,212,255,.25), inset 0 1px 0 rgba(255,255,255,.05);transition: all 0.25s;letter-spacing:2px;}
+  .timer-warn { color: #ff4b2b !important; border-color: #ff4b2b !important; box-shadow: 0 0 30px #ff4b2b !important; transform: scale(1.1); }
+  .bg-layer {position: fixed; top: 0; left: 0; width: 100%; height: 100%;background: linear-gradient(rgba(6,9,22,.58),rgba(6,9,22,.72)), #050816 url('Gemini_Generated_Image_axefmzaxefmzaxef.jpg') center/cover no-repeat;filter: brightness(0.42) saturate(1.02); z-index: -2;}
+  .bg-layer::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 24% 22%, rgba(103,232,255,.12), transparent 24%), radial-gradient(circle at 78% 20%, rgba(141,107,255,.10), transparent 21%), radial-gradient(circle at 58% 82%, rgba(255,216,107,.08), transparent 18%);mix-blend-mode:screen;}
+  .bg-layer::after{content:"";position:absolute;inset:-12%;background:linear-gradient(115deg, transparent 44%, rgba(255,255,255,.04) 48%, rgba(103,232,255,.06) 50%, transparent 54%);transform:translateX(-42%);animation:battleSweep 11s ease-in-out infinite;opacity:.65} 
+  @keyframes battleSweep{0%,100%{transform:translateX(-42%)}50%{transform:translateX(42%)}}
+  .game-main {display: flex; align-items: center; justify-content: center;gap: 30px; width: 97%; max-width: 1580px;}
+  .hp-visual-container { position: relative; width: 118px; height: 520px; }
+  .hp-img-base { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
+  .hp-bg { filter: brightness(0.2); z-index: 1; }
+  .hp-ghost { z-index: 2; filter: brightness(2) saturate(0); transition: clip-path 1s ease-out; opacity: 0.5; }
+  .hp-fill { z-index: 3; transition: clip-path 0.3s ease-out; }
+  .defending-bar { filter: drop-shadow(0 0 15px #00d4ff) brightness(1.2) !important; }
+  .hp-text { position: absolute; width: 100%; text-align: center;font-size: 1.2rem; font-weight: 900; color: #fff;text-shadow: 0 0 8px #000; z-index: 10; transition: top 0.4s; }
+  .side-panel {position:relative; display: flex; align-items: center; gap: 20px;background: linear-gradient(180deg, rgba(10,14,31,.82), rgba(8,12,25,.92)); padding: 25px; border-radius: 35px;border: 1px solid rgba(255,255,255,0.10); transition: all 0.4s ease; box-shadow:0 18px 34px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.05);} 
+  .avatar { width: 165px; height: 305px; border-radius: 20px; object-fit: cover;border: 3px solid rgba(255,255,255,0.2); filter: brightness(0.4); transition: all 0.4s ease; }
+  .stunned-avatar { filter: sepia(1) hue-rotate(300deg) brightness(0.6) !important; border-color: #ff00ff !important; }
+  .active-side-O .avatar { filter: brightness(1); border-color: #f6d26a; box-shadow: var(--glow-O); }
+  .active-side-X .avatar { filter: brightness(1); border-color: #9a7bff; box-shadow: var(--glow-X); }
+  .active-side-O { border-color: rgba(246,210,106,.5)!important; transform: scale(1.05); }
+  .active-side-X { border-color: rgba(154,123,255,.5)!important; transform: scale(1.05); }
+  .identity-badge { position:absolute; top:10px; left:50%; transform:translateX(-50%); padding:6px 12px; border-radius:999px; font-size:.95rem; font-weight:900; letter-spacing:1px; background:rgba(0,0,0,.72); border:1px solid rgba(255,255,255,.18); z-index:12; }
+  .identity-badge.me { color:#7CFFB2; border-color:rgba(124,255,178,.45);} .identity-badge.enemy { color:#FF8F8F; border-color:rgba(255,143,143,.45);} .side-panel.my-side { box-shadow:0 0 0 3px rgba(124,255,178,.22),0 0 26px rgba(124,255,178,.18);} .side-panel.enemy-side { box-shadow:0 0 0 3px rgba(255,143,143,.15),0 0 22px rgba(255,143,143,.12); opacity:.92; }
+  .sp-column-vertical { display: flex; flex-direction: column-reverse; gap: 15px; }
+  .sp-dot { width: 45px; height: 45px; background-size: contain; background-repeat: no-repeat; transition: 0.3s; }
+  .sp-on { background-image: url('sp_on.png'); border-radius: 50%; box-shadow: 0 0 15px rgba(246, 210, 106, 0.6); }
+  .sp-off { background-image: url('sp_off.png'); background-color: rgba(255, 255, 255, 0.05); border-radius: 50%; opacity: 0.3; }
+  .board-wrapper,.skill-footer-wrap { position: relative; }
+  .board {display: grid; grid-template-columns: repeat(3, 150px); grid-template-rows: repeat(3, 150px);gap: 18px; padding: 28px; background: linear-gradient(180deg, rgba(10,14,31,.74), rgba(7,10,22,.88));border-radius: 30px; border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(10px); box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 18px 34px rgba(0,0,0,.24);}
+  .cell {position:relative;background: linear-gradient(180deg, rgba(3,5,12,.82), rgba(12,18,35,.82)); border-radius: 18px;display: flex; align-items: center; justify-content: center;font-size: 4.8rem; font-weight: bold; cursor: pointer; transition: 0.2s; border:1px solid rgba(255,255,255,.08); box-shadow:inset 0 1px 0 rgba(255,255,255,.03);} 
+  .cell::before{content:"";position:absolute;inset:0;border-radius:18px;background:linear-gradient(135deg, rgba(103,232,255,.03), transparent 42%, transparent 65%, rgba(141,107,255,.03));pointer-events:none}
+  .cell.O { color: #f6d26a; text-shadow: var(--glow-O); }
+  .cell.X { color: #9a7bff; text-shadow: var(--glow-X); }
+  @keyframes blinkWarn { from { opacity: 1; } to { opacity: 0.3; filter: brightness(2); } }
+  .warning-cell { animation: blinkWarn 0.6s infinite alternate; }
+  #win-line-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+  .winning-line { stroke: var(--win-line-color); stroke-width: 12; stroke-linecap: round; filter: drop-shadow(0 0 15px var(--win-line-color)); stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: drawLine 0.5s ease-out forwards; }
+  @keyframes drawLine { to { stroke-dashoffset: 0; } }
+  .action-lock-mask { position:absolute; inset:0; border-radius:30px; display:none; align-items:center; justify-content:center; text-align:center; padding:20px; background:rgba(5,8,22,.45); backdrop-filter:blur(2px); color:#fff; font-weight:900; letter-spacing:1px; z-index:20; border:2px solid rgba(255,255,255,.12); }
+  .skill-footer-wrap .action-lock-mask { border-radius:80px; }
+  .interaction-locked .action-lock-mask { display:flex; }
+  .interaction-locked .board, .interaction-locked .skill-footer { filter:grayscale(.3) brightness(.72); pointer-events:none; }
+  .skill-footer {margin-top: 48px; display: flex; flex-direction: column; align-items: center; gap: 10px;background: linear-gradient(180deg, rgba(10,14,31,.82), rgba(8,12,24,.94)); padding: 22px 72px; border-radius: 80px;border: 1px solid rgba(255,255,255,0.14);box-shadow:0 16px 30px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.04);}
+  .usage-dots { display: flex; gap: 12px; padding-bottom: 5px; }
+  .u-dot { width: 14px; height: 14px; border-radius: 50%; background: #333; transition: 0.3s; border: 1px solid #555; }
+  .u-dot.fill { background: #00d4ff; box-shadow: 0 0 10px #00d4ff; border-color: #fff; }
+  .skill-header-row { display: flex; align-items: center; gap: 48px; }
+  .skill-label { font-size: 2rem; font-weight: bold; color: #77ecff; border-right: 3px solid rgba(255,255,255,.16); padding-right: 42px; letter-spacing:2px; text-shadow:0 0 14px rgba(103,232,255,.20);} 
+  .skill-list { display: flex; gap: 28px; }
+  .s-btn {position: relative; width: 255px; height: 118px; border: none; border-radius: 25px;cursor: not-allowed; background-size: cover; background-position: center;opacity: 0.4; filter: brightness(0.6); transition: all 0.3s; overflow:hidden;}
+  .s-btn::before{content:"";position:absolute;inset:0;background:linear-gradient(115deg, transparent 30%, rgba(255,255,255,.18) 48%, transparent 66%);transform:translateX(-140%);transition:transform .6s ease;pointer-events:none} 
+  .s-btn.active:hover::before{transform:translateX(170%)}
+  .s-btn.active { cursor: pointer; opacity: 1; filter: brightness(1); transform: translateY(-5px); border: 3px solid #00d4ff; box-shadow: 0 0 20px rgba(0,212,255,0.6); }
+  .s-btn.sealed::after {content:"技能封印中";position:absolute;width:100%;text-align:center;top:40%;color:#ff00ff;font-weight:bold;font-size:1.4rem;text-shadow:0 0 8px black;}
+  .cost-tag { position: absolute; bottom: 8px; right: 15px; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 10px; font-size: 0.9rem; color: #f6d26a; border: 1px solid rgba(246, 210, 106, 0.4); pointer-events: none; }
+  .btn-atk { background-image: url('skill_atk.png'); }
+  .btn-def { background-image: url('skill_def.png'); }
+  .btn-hel { background-image: url('skill_hel.png'); }
+  .btn-stn { background-image: url('skill_stn.png'); }
+  #overlayWait{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,7,18,.62);backdrop-filter:blur(6px);z-index:9998}
+  #overlayWait .box{background:linear-gradient(180deg,rgba(10,14,31,.88),rgba(6,9,20,.94));padding:30px 34px;border-radius:24px;text-align:center;border:1px solid rgba(255,255,255,.16);box-shadow:0 18px 42px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.05)}
+
+  @keyframes pulseWarn { 0%{transform:scale(1.0)} 50%{transform:scale(1.12)} 100%{transform:scale(1.0)} }
+  .timer-warn { color: #ff4b2b !important; border-color: #ff4b2b !important; box-shadow: 0 0 30px #ff4b2b !important; animation:pulseWarn .55s infinite; }
+  #resultOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(3,4,12,.66);backdrop-filter:blur(8px);z-index:10000}
+  #resultOverlay.show{display:flex}
+  .result-card{min-width:min(88vw,560px);padding:34px 32px;border-radius:28px;text-align:center;border:1px solid rgba(255,255,255,.18);box-shadow:0 24px 54px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06)}
+  .result-card.win{background:linear-gradient(135deg,rgba(246,210,106,.18),rgba(0,212,255,.16),rgba(0,0,0,.84));border-color:rgba(246,210,106,.45)}
+  .result-card.lose{background:linear-gradient(135deg,rgba(90,40,130,.35),rgba(24,10,44,.88),rgba(0,0,0,.84));border-color:rgba(154,123,255,.35)}
+  .result-title{font-size:4rem;font-weight:900;letter-spacing:6px;margin:0 0 10px}
+  .result-card.win .result-title{color:#ffe37a;text-shadow:0 0 18px rgba(0,212,255,.45)}
+  .result-card.lose .result-title{color:#c9a8ff;text-shadow:0 0 18px rgba(154,123,255,.35)}
+  .result-sub{font-size:1.2rem;opacity:.92;margin-bottom:16px}
+  .result-remain{font-size:1rem;opacity:.88;margin-bottom:16px}
+  .result-actions{display:flex;justify-content:center;gap:14px;flex-wrap:wrap}
+  .result-actions button{min-width:160px;height:48px;border:none;border-radius:14px;font-size:1.05rem;font-weight:900;cursor:pointer}
+  #btnRematch{background:linear-gradient(90deg,#00c6ff,#0072ff);color:#fff}
+  #btnBackMenu{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.18)}
+</style>
+</head>
+<body>
+<div class="bg-layer"></div>
+<div id="topbar">
+  <div class="pill">房號：<strong id="roomCode"></strong></div>
+  <div class="pill" id="turnText">讀取中…</div>
+</div>
+<div id="timer-container">--</div>
+<div class="game-main" id="main-container">
+  <div class="hp-visual-container" id="hp-box-O">
+    <div id="hp-val-O" class="hp-text">100%</div>
+    <img src="left-hp-bar.png" class="hp-img-base hp-bg">
+    <img src="left-hp-bar.png" id="hp-ghost-O" class="hp-img-base hp-ghost">
+    <img src="left-hp-bar.png" id="hp-fill-O" class="hp-img-base hp-fill">
+  </div>
+  <div class="side-panel" id="panel-O">
+    <div class="identity-badge" id="badge-O">光 / O</div>
+    <img src="image_ba490a.png" class="avatar" id="avatar-O" alt="P1">
+    <div class="sp-column-vertical" id="sp-display-O"></div>
+  </div>
+  <div class="board-wrapper board-wrap" id="board-wrap">
+    <svg id="win-line-canvas"></svg>
+    <div class="board" id="board"></div>
+    <div class="action-lock-mask" id="board-lock-mask">等待對手回合</div>
+  </div>
+  <div class="side-panel" id="panel-X">
+    <div class="identity-badge" id="badge-X">影 / X</div>
+    <div class="sp-column-vertical" id="sp-display-X"></div>
+    <img src="image_ba4947.png" class="avatar" id="avatar-X" alt="P2">
+  </div>
+  <div class="hp-visual-container" id="hp-box-X">
+    <div id="hp-val-X" class="hp-text">100%</div>
+    <img src="right-hp-bar.png" class="hp-img-base hp-bg">
+    <img src="right-hp-bar.png" id="hp-ghost-X" class="hp-img-base hp-ghost">
+    <img src="right-hp-bar.png" id="hp-fill-X" class="hp-img-base hp-fill">
+  </div>
+</div>
+<div class="skill-footer-wrap interaction-locked" id="skill-footer-wrap">
+  <div class="skill-footer" id="skill-footer">
+    <div class="usage-dots" id="usage-dots-container"></div>
+    <div class="skill-header-row">
+      <div class="skill-label">戰技命令</div>
+      <div class="skill-list" id="skill-list-container"></div>
+    </div>
+  </div>
+  <div class="action-lock-mask" id="skill-lock-mask">不是你的操作階段</div>
+</div>
+<div id="overlayWait"><div class="box"><h2>等待戰鬥狀態…</h2><div id="overlayMsg">讀取房間資料中</div></div></div>
+
+<div id="resultOverlay">
+  <div id="resultCard" class="result-card win">
+    <h1 id="resultTitle" class="result-title">勝利</h1>
+    <div id="resultSub" class="result-sub">本局已結束</div>
+    <div id="resultRemain" class="result-remain">重玩等待：10 秒</div>
+    <div class="result-actions">
+      <button id="btnRematch">重新遊玩</button>
+      <button id="btnBackMenu">返回菜單</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="./battle.js"></script>
+</body>
+</html>
